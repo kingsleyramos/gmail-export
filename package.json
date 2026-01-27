@@ -6,6 +6,8 @@
     "scripts": {
         "export": "node --loader ts-node/esm exportGmail.ts",
         "exportv2": "node --loader ts-node/esm exportGmail_v2.ts",
+        "exportv2bodysplit": "node --loader ts-node/esm exportGmail_v2_with_body_split.ts",
+        "splitcsv": "node splitCsvBySize.mjs",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "repository": {
