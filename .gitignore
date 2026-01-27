@@ -1,0 +1,32 @@
+# --- Secrets / Credentials ---
+credentials.json
+token.json
+
+# --- Generated Outputs ---
+gmail_export.csv
+gmail_export_v2.csv
+*.csv
+
+# --- Node ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- TypeScript ---
+*.tsbuildinfo
+
+# --- Build output (if you ever compile) ---
+dist/
+build/
+
+# --- OS / Editor junk ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Env files (if added later) ---
+.env
+.env.*

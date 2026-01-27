@@ -1,0 +1,32 @@
+{
+    "name": "gmail-export",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "export": "node --loader ts-node/esm exportGmail.ts",
+        "exportv2": "node --loader ts-node/esm exportGmail_v2.ts",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kingsleyramos/gmail-export.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "module",
+    "bugs": {
+        "url": "https://github.com/kingsleyramos/gmail-export/issues"
+    },
+    "homepage": "https://github.com/kingsleyramos/gmail-export#readme",
+    "dependencies": {
+        "@google-cloud/local-auth": "^3.0.1",
+        "googleapis": "^170.1.0"
+    },
+    "devDependencies": {
+        "@types/node": "^25.0.10",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.9.3"
+    }
+}
