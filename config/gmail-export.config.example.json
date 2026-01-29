@@ -1,0 +1,21 @@
+{
+    "query": "-in:sent -in:spam -in:trash",
+    "maxMessages": 0,
+    "outputDir": "./exports",
+    "outputPrefix": "gmail_export",
+    "includeTimestamp": true,
+    "bodyMaxChars": 8000,
+    "maxBytesPerFile": 262144000,
+    "fields": [
+        "from_email",
+        "from_name",
+        "sender_domain",
+        "reply_to_domain",
+        "delivered_to",
+        "subject",
+        "snippet",
+        "has_attachment",
+        "attachment_types",
+        "has_list_unsubscribe"
+    ]
+}

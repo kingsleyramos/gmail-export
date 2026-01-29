@@ -3,8 +3,6 @@ credentials.json
 token.json
 
 # --- Generated Outputs ---
-gmail_export.csv
-gmail_export_v2.csv
 *.csv
 
 # --- Node ---
@@ -17,7 +15,7 @@ pnpm-debug.log*
 # --- TypeScript ---
 *.tsbuildinfo
 
-# --- Build output (if you ever compile) ---
+# --- Build output ---
 dist/
 build/
 
@@ -30,3 +28,6 @@ Thumbs.db
 # --- Env files (if added later) ---
 .env
 .env.*
+
+# --- User Config files (if added later) ---
+gmail-export.config.json
