@@ -3,7 +3,13 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import {ExportConfig, ExportField, DEFAULT_FIELDS, ALL_FIELDS} from './types.js';
+import {
+    ExportConfig,
+    ExportField,
+    DEFAULT_FIELDS,
+    ALL_FIELDS,
+} from './types.js';
+import {DEFAULT_REDACTION_CATEGORIES} from './sanitizer.js';
 
 const CONFIG_FILENAME = 'gmail-export.config.json';
 
@@ -15,12 +21,18 @@ export const DEFAULT_CONFIG: ExportConfig = {
     // Output
     outputDir: './exports',
     outputPrefix: 'gmail_export',
-    maxBytesPerFile: 250 * 1024 * 1024, // 250MB
+    maxBytesPerFile: 250 * 1_000_000, // 250MB (decimal)
     includeTimestamp: true,
 
     // Content
     fields: DEFAULT_FIELDS,
     bodyMaxChars: 8000,
+
+    // Sanitization
+    sanitize: {
+        enabled: false,
+        categories: DEFAULT_REDACTION_CATEGORIES,
+    },
 
     // Auth
     credentialsPath: './credentials.json',
@@ -68,22 +80,43 @@ function validatePartialConfig(obj: unknown): Partial<ExportConfig> {
     const input = obj as Record<string, unknown>;
 
     if (typeof input.query === 'string') config.query = input.query;
-    if (typeof input.maxMessages === 'number') config.maxMessages = input.maxMessages;
+    if (typeof input.maxMessages === 'number')
+        config.maxMessages = input.maxMessages;
     if (typeof input.outputDir === 'string') config.outputDir = input.outputDir;
-    if (typeof input.outputPrefix === 'string') config.outputPrefix = input.outputPrefix;
-    if (typeof input.maxBytesPerFile === 'number') config.maxBytesPerFile = input.maxBytesPerFile;
-    if (typeof input.includeTimestamp === 'boolean') config.includeTimestamp = input.includeTimestamp;
-    if (typeof input.bodyMaxChars === 'number') config.bodyMaxChars = input.bodyMaxChars;
-    if (typeof input.credentialsPath === 'string') config.credentialsPath = input.credentialsPath;
+    if (typeof input.outputPrefix === 'string')
+        config.outputPrefix = input.outputPrefix;
+    if (typeof input.maxBytesPerFile === 'number')
+        config.maxBytesPerFile = input.maxBytesPerFile;
+    if (typeof input.includeTimestamp === 'boolean')
+        config.includeTimestamp = input.includeTimestamp;
+    if (typeof input.bodyMaxChars === 'number')
+        config.bodyMaxChars = input.bodyMaxChars;
+    if (typeof input.credentialsPath === 'string')
+        config.credentialsPath = input.credentialsPath;
     if (typeof input.tokenPath === 'string') config.tokenPath = input.tokenPath;
 
     if (Array.isArray(input.fields)) {
         const validFields = input.fields.filter(
-            (f): f is ExportField => typeof f === 'string' && ALL_FIELDS.includes(f as ExportField)
+            (f): f is ExportField =>
+                typeof f === 'string' && ALL_FIELDS.includes(f as ExportField),
         );
         if (validFields.length > 0) {
             config.fields = validFields;
         }
+    }
+
+    // Handle sanitize config
+    if (typeof input.sanitize === 'object' && input.sanitize !== null) {
+        const sanitizeInput = input.sanitize as Record<string, unknown>;
+        config.sanitize = {
+            enabled:
+                typeof sanitizeInput.enabled === 'boolean'
+                    ? sanitizeInput.enabled
+                    : false,
+            categories: Array.isArray(sanitizeInput.categories)
+                ? sanitizeInput.categories
+                : DEFAULT_REDACTION_CATEGORIES,
+        };
     }
 
     return config;
@@ -116,12 +149,12 @@ export function parseArgs(argv: string[]): CLIArgs {
         switch (arg) {
             case '-c':
             case '--config':
-                args.config = next;
+                if (next) args.config = next;
                 i++;
                 break;
             case '-q':
             case '--query':
-                args.query = next;
+                if (next) args.query = next;
                 i++;
                 break;
             case '-m':
@@ -131,17 +164,17 @@ export function parseArgs(argv: string[]): CLIArgs {
                 break;
             case '-o':
             case '--output-dir':
-                args.outputDir = next;
+                if (next) args.outputDir = next;
                 i++;
                 break;
             case '-p':
             case '--prefix':
-                args.outputPrefix = next;
+                if (next) args.outputPrefix = next;
                 i++;
                 break;
             case '-f':
             case '--fields':
-                args.fields = next;
+                if (next) args.fields = next;
                 i++;
                 break;
             case '--no-timestamp':
@@ -152,7 +185,7 @@ export function parseArgs(argv: string[]): CLIArgs {
                 i++;
                 break;
             case '--credentials':
-                args.credentialsPath = next;
+                if (next) args.credentialsPath = next;
                 i++;
                 break;
             case '-i':
@@ -186,13 +219,14 @@ export function argsToConfig(args: CLIArgs): Partial<ExportConfig> {
     if (args.outputDir) config.outputDir = args.outputDir;
     if (args.outputPrefix) config.outputPrefix = args.outputPrefix;
     if (args.noTimestamp) config.includeTimestamp = false;
-    if (args.bodyMaxChars !== undefined) config.bodyMaxChars = args.bodyMaxChars;
+    if (args.bodyMaxChars !== undefined)
+        config.bodyMaxChars = args.bodyMaxChars;
     if (args.credentialsPath) config.credentialsPath = args.credentialsPath;
 
     if (args.fields) {
         const fieldList = args.fields.split(',').map((f) => f.trim());
-        const validFields = fieldList.filter(
-            (f): f is ExportField => ALL_FIELDS.includes(f as ExportField)
+        const validFields = fieldList.filter((f): f is ExportField =>
+            ALL_FIELDS.includes(f as ExportField),
         );
         if (validFields.length > 0) {
             config.fields = validFields;
@@ -202,20 +236,29 @@ export function argsToConfig(args: CLIArgs): Partial<ExportConfig> {
     return config;
 }
 
-export function mergeConfigs(...configs: Partial<ExportConfig>[]): ExportConfig {
+export function mergeConfigs(
+    ...configs: Partial<ExportConfig>[]
+): ExportConfig {
     const merged = {...DEFAULT_CONFIG};
 
     for (const config of configs) {
         if (config.query !== undefined) merged.query = config.query;
-        if (config.maxMessages !== undefined) merged.maxMessages = config.maxMessages;
+        if (config.maxMessages !== undefined)
+            merged.maxMessages = config.maxMessages;
         if (config.outputDir !== undefined) merged.outputDir = config.outputDir;
-        if (config.outputPrefix !== undefined) merged.outputPrefix = config.outputPrefix;
-        if (config.maxBytesPerFile !== undefined) merged.maxBytesPerFile = config.maxBytesPerFile;
-        if (config.includeTimestamp !== undefined) merged.includeTimestamp = config.includeTimestamp;
+        if (config.outputPrefix !== undefined)
+            merged.outputPrefix = config.outputPrefix;
+        if (config.maxBytesPerFile !== undefined)
+            merged.maxBytesPerFile = config.maxBytesPerFile;
+        if (config.includeTimestamp !== undefined)
+            merged.includeTimestamp = config.includeTimestamp;
         if (config.fields !== undefined) merged.fields = config.fields;
-        if (config.bodyMaxChars !== undefined) merged.bodyMaxChars = config.bodyMaxChars;
-        if (config.credentialsPath !== undefined) merged.credentialsPath = config.credentialsPath;
+        if (config.bodyMaxChars !== undefined)
+            merged.bodyMaxChars = config.bodyMaxChars;
+        if (config.credentialsPath !== undefined)
+            merged.credentialsPath = config.credentialsPath;
         if (config.tokenPath !== undefined) merged.tokenPath = config.tokenPath;
+        if (config.sanitize !== undefined) merged.sanitize = config.sanitize;
     }
 
     return merged;

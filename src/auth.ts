@@ -4,10 +4,12 @@
 import fs from 'node:fs';
 import readline from 'node:readline';
 import {google} from 'googleapis';
-import type {OAuth2Client} from 'google-auth-library';
 import chalk from 'chalk';
 
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+
+// Use the OAuth2Client type from googleapis to avoid version mismatches
+type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 
 interface Credentials {
     client_id: string;

@@ -2,7 +2,6 @@
 // Main export logic with colorful progress display
 
 import {google, gmail_v1} from 'googleapis';
-import type {OAuth2Client} from 'google-auth-library';
 import chalk from 'chalk';
 import logUpdate from 'log-update';
 import type {ExportConfig, ExportField, ExportStats} from './types.js';
@@ -15,6 +14,10 @@ import {
     extractBodyText,
     extractBodyHtml,
 } from './parser.js';
+import {sanitizeText} from './sanitizer.js';
+
+// Use the OAuth2Client type from googleapis to avoid version mismatches
+type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 
 const SPEED_WINDOW = 6;
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -100,8 +103,7 @@ export async function runExport(
     auth: OAuth2Client,
     config: ExportConfig
 ): Promise<ExportStats> {
-    // Type assertion needed due to googleapis/google-auth-library version mismatch
-    const gmail = google.gmail({version: 'v1', auth: auth as any}) as gmail_v1.Gmail;
+    const gmail = google.gmail({version: 'v1', auth});
 
     // Get mailbox info
     const profileRes = await gmail.users.getProfile({userId: 'me'});
@@ -116,6 +118,9 @@ export async function runExport(
     console.log(`  ${chalk.dim('Fields:')}      ${chalk.white(String(config.fields.length))} selected`);
     if (config.maxMessages > 0) {
         console.log(`  ${chalk.dim('Limit:')}       ${chalk.yellow(config.maxMessages.toLocaleString())} messages`);
+    }
+    if (config.sanitize.enabled) {
+        console.log(`  ${chalk.dim('Redaction:')}   ${chalk.green(config.sanitize.categories.length + ' categories enabled')}`);
     }
 
     // Initialize output
@@ -363,12 +368,24 @@ function extractFields(
                         ? 'true'
                         : 'false';
                 break;
-            case 'body_text':
-                row.body_text = extractBodyText(payload, config.bodyMaxChars);
+            case 'body_text': {
+                let bodyText = extractBodyText(payload, config.bodyMaxChars);
+                if (config.sanitize.enabled) {
+                    const result = sanitizeText(bodyText, config.sanitize);
+                    bodyText = result.text;
+                }
+                row.body_text = bodyText;
                 break;
-            case 'body_html':
-                row.body_html = extractBodyHtml(payload, config.bodyMaxChars);
+            }
+            case 'body_html': {
+                let bodyHtml = extractBodyHtml(payload, config.bodyMaxChars);
+                if (config.sanitize.enabled) {
+                    const result = sanitizeText(bodyHtml, config.sanitize);
+                    bodyHtml = result.text;
+                }
+                row.body_html = bodyHtml;
                 break;
+            }
         }
     }
 

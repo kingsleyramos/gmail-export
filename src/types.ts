@@ -1,6 +1,13 @@
 // src/types.ts
 // Type definitions for gmail-export
 
+import type { RedactionCategory } from './sanitizer.js';
+
+export interface SanitizeConfig {
+    enabled: boolean;
+    categories: RedactionCategory[];
+}
+
 export interface ExportConfig {
     // Query options
     query: string;
@@ -15,6 +22,9 @@ export interface ExportConfig {
     // Content options
     fields: ExportField[];
     bodyMaxChars: number;
+
+    // Sanitization
+    sanitize: SanitizeConfig;
 
     // Auth paths
     credentialsPath: string;

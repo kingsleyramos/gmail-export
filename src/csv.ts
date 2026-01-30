@@ -6,7 +6,13 @@ import path from 'node:path';
 import type {ExportField} from './types.js';
 
 export function csvEscape(value: string): string {
-    const v = (value ?? '').replace(/\r?\n/g, ' ').trim();
+    // Replace all newline variants (CRLF, LF, CR) with spaces
+    const v = (value ?? '')
+        .replace(/\r\n/g, ' ') // Windows CRLF
+        .replace(/\n/g, ' ') // Unix LF
+        .replace(/\r/g, ' ') // Old Mac CR
+        .replace(/\s+/g, ' ') // Collapse multiple spaces
+        .trim();
     if (/[",]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
     return v;
 }
@@ -41,7 +47,8 @@ export function createOutputManager(options: {
     maxBytesPerFile: number;
     fields: ExportField[];
 }): OutputManager {
-    const {outputDir, prefix, includeTimestamp, maxBytesPerFile, fields} = options;
+    const {outputDir, prefix, includeTimestamp, maxBytesPerFile, fields} =
+        options;
 
     // Ensure output directory exists
     if (!fs.existsSync(outputDir)) {
@@ -59,7 +66,8 @@ export function createOutputManager(options: {
     const filesCreated: string[] = [currentPath];
 
     function getPartPath(part: number): string {
-        const partSuffix = part > 1 ? `_part${String(part).padStart(3, '0')}` : '';
+        const partSuffix =
+            part > 1 ? `_part${String(part).padStart(3, '0')}` : '';
         return path.join(outputDir, `${baseFilename}${partSuffix}.csv`);
     }
 
@@ -69,8 +77,12 @@ export function createOutputManager(options: {
         return Buffer.byteLength(headerLine, 'utf8');
     }
 
-    function rotateIfNeeded(): void {
-        if (maxBytesPerFile > 0 && bytesInCurrentFile >= maxBytesPerFile) {
+    function rotateIfNeeded(nextLineBytes: number): void {
+        // Check if adding the next line would exceed the limit
+        if (
+            maxBytesPerFile > 0 &&
+            bytesInCurrentFile + nextLineBytes > maxBytesPerFile
+        ) {
             stream.end();
             partIndex++;
             currentPath = getPartPath(partIndex);
@@ -85,11 +97,14 @@ export function createOutputManager(options: {
         write(row: Record<ExportField, string>): void {
             const values = fields.map((f) => csvEscape(row[f] ?? ''));
             const line = values.join(',') + '\n';
-            stream.write(line);
             const lineBytes = Buffer.byteLength(line, 'utf8');
+
+            // Check and rotate BEFORE writing
+            rotateIfNeeded(lineBytes);
+
+            stream.write(line);
             bytesInCurrentFile += lineBytes;
             totalBytes += lineBytes;
-            rotateIfNeeded();
         },
 
         close(): void {
@@ -111,8 +126,8 @@ export function createOutputManager(options: {
 }
 
 export function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    if (bytes < 1000) return `${bytes} B`;
+    if (bytes < 1_000_000) return `${(bytes / 1000).toFixed(1)} KB`;
+    if (bytes < 1_000_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+    return `${(bytes / 1_000_000_000).toFixed(2)} GB`;
 }
