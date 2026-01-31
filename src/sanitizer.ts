@@ -1,6 +1,8 @@
 // src/sanitizer.ts
 // Personal information redaction for email exports
 
+import { ADDRESS_PATTERNS, CITY_PATTERNS } from './address-detector.js';
+
 export type RedactionCategory =
     // Security/Privacy - ON by default
     | 'credit_cards'
@@ -41,10 +43,7 @@ export interface RedactionPattern {
     replacement: string;
 }
 
-export const REDACTION_CATEGORIES: Record<
-    RedactionCategory,
-    {name: string; description: string; default: boolean}
-> = {
+export const REDACTION_CATEGORIES: Record<RedactionCategory, { name: string; description: string; default: boolean }> = {
     // ═══════════════════════════════════════════════════════════════════
     // SECURITY/PRIVACY - ON by default
     // ═══════════════════════════════════════════════════════════════════
@@ -95,7 +94,7 @@ export const REDACTION_CATEGORIES: Record<
     },
     government_ids: {
         name: 'Government IDs',
-        description: "Passport, driver's license, national ID numbers",
+        description: 'Passport, driver\'s license, national ID numbers',
         default: true,
     },
     token_urls: {
@@ -154,8 +153,7 @@ export const REDACTION_CATEGORIES: Record<
     },
     medical_ids: {
         name: 'Medical IDs',
-        description:
-            'Medical record numbers, insurance IDs, prescription numbers',
+        description: 'Medical record numbers, insurance IDs, prescription numbers',
         default: true,
     },
 
@@ -194,12 +192,10 @@ export const REDACTION_CATEGORIES: Record<
     },
 };
 
-export const ALL_REDACTION_CATEGORIES = Object.keys(
-    REDACTION_CATEGORIES,
-) as RedactionCategory[];
+export const ALL_REDACTION_CATEGORIES = Object.keys(REDACTION_CATEGORIES) as RedactionCategory[];
 
 export const DEFAULT_REDACTION_CATEGORIES = ALL_REDACTION_CATEGORIES.filter(
-    (cat) => REDACTION_CATEGORIES[cat].default,
+    (cat) => REDACTION_CATEGORIES[cat].default
 );
 
 const PATTERNS: RedactionPattern[] = [
@@ -361,12 +357,16 @@ const PATTERNS: RedactionPattern[] = [
         name: 'Phone Numbers',
         description: 'Phone numbers in various international formats',
         patterns: [
+            // +1XXXXXXXXXX format (no separators)
+            /\+1[0-9]{10}\b/g,
             // US/Canada: (XXX) XXX-XXXX, XXX-XXX-XXXX, XXX.XXX.XXXX
             /\b(?:\+?1[\s\-\.]?)?\(?[0-9]{3}\)?[\s\-\.][0-9]{3}[\s\-\.][0-9]{4}\b/g,
-            // 10-digit US number without separators (but with context to avoid false positives)
+            // 10-digit US number without separators
             /\b[2-9][0-9]{2}[2-9][0-9]{6}\b/g,
-            // International with + prefix
-            /\b\+[0-9]{1,3}[\s\-\.]?[0-9]{1,4}[\s\-\.]?[0-9]{1,4}[\s\-\.]?[0-9]{1,4}[\s\-\.]?[0-9]{0,4}\b/g,
+            // International with + prefix (with separators)
+            /\+[0-9]{1,3}[\s\-\.][0-9]{1,4}[\s\-\.][0-9]{1,4}[\s\-\.][0-9]{1,4}[\s\-\.]?[0-9]{0,4}\b/g,
+            // International without separators: +XXXXXXXXXXX (11-15 digits)
+            /\+[0-9]{11,15}\b/g,
             // UK: +44 XXXX XXXXXX or 0XXXX XXXXXX
             /\b(?:\+44|0)[\s\-\.]?[0-9]{4}[\s\-\.]?[0-9]{6}\b/g,
             // Phone with context
@@ -379,18 +379,9 @@ const PATTERNS: RedactionPattern[] = [
         name: 'Physical Addresses',
         description: 'Street addresses and postal codes',
         patterns: [
-            // US Street Address: 123 Main St
-            /\b[0-9]{1,6}\s+[A-Za-z0-9\s]{2,30}(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|court|ct|circle|cir|boulevard|blvd|place|pl|terrace|ter|parkway|pkwy)\.?(?:\s*(?:#|apt|apartment|suite|ste|unit|bldg|building)\.?\s*[A-Za-z0-9\-]+)?\b/gi,
-            // PO Box
-            /\b(?:p\.?\s*o\.?\s*box|post\s*office\s*box)\s*[0-9]+\b/gi,
-            // US ZIP code: XXXXX or XXXXX-XXXX
-            /\b[0-9]{5}(?:-[0-9]{4})?\b/g,
-            // UK Postcode: AA9A 9AA
-            /\b[A-Z]{1,2}[0-9][A-Z0-9]?\s*[0-9][A-Z]{2}\b/gi,
-            // Canada Postal: A1A 1A1
-            /\b[A-Z][0-9][A-Z]\s*[0-9][A-Z][0-9]\b/gi,
-            // Address with context
-            /\b(?:address|ship(?:ping)?|deliver(?:y)?|mail(?:ing)?)\s*(?:to)?:?\s*[0-9]{1,6}\s+[A-Za-z0-9\s,\.]{10,100}/gi,
+            // Use comprehensive patterns from address-detector module
+            ...ADDRESS_PATTERNS,
+            ...CITY_PATTERNS,
         ],
         replacement: '[REDACTED_ADDRESS]',
     },
@@ -416,7 +407,7 @@ const PATTERNS: RedactionPattern[] = [
     {
         category: 'government_ids',
         name: 'Government IDs',
-        description: "Passport, driver's license, national IDs",
+        description: 'Passport, driver\'s license, national IDs',
         patterns: [
             // Passport with context
             /\b(?:passport)(?:\s*(?:#|number|no\.?)?:?\s*)[A-Z0-9]{6,12}\b/gi,
@@ -452,8 +443,8 @@ const PATTERNS: RedactionPattern[] = [
             /https?:\/\/[^\s]*[?&](?:track|click|open|view|pixel)[^\s]*=[^\s&"']{20,}[^\s]*/gi,
             // Generic URLs with very long token parameters
             /https?:\/\/[^\s<>"']*[?&][a-z_]*(?:token|key|hash|signature|sig|auth|session)=[A-Za-z0-9_\-\.%]{30,}[^\s<>"']*/gi,
-            // URLs with personal/tracking IDs (payeeId, bu, uid, userId, trkId, euid, cnvId, etc.)
-            /https?:\/\/[^\s<>"']*[?&;](?:payeeId|bu|uid|userId|user_id|trkId|euid|cnvId|mesgId|osub|segname|plmtId)=[A-Za-z0-9_\-\.%]+[^\s<>"']*/gi,
+            // URLs with personal/tracking IDs (payeeId, bu, uid, userId, trkId, euid, cnvId, ndid, _ei_, username, etc.)
+            /https?:\/\/[^\s<>"']*[?&;](?:payeeId|bu|uid|userId|user_id|trkId|euid|cnvId|mesgId|osub|segname|plmtId|ndid|_ei_|username|pcid)=[A-Za-z0-9_\-\.%]+[^\s<>"']*/gi,
             // URLs with long numeric IDs in path or params
             /https?:\/\/[^\s<>"']*[?&][a-z_]*[iI]d=[0-9]{8,}[^\s<>"']*/gi,
         ],
@@ -630,6 +621,8 @@ const PATTERNS: RedactionPattern[] = [
             /\b(?:RR|FF|MP|SK|AA|UA|DL|WN)(?:\s*#?\s*)[0-9]{8,12}\b/gi,
             // Rapid Rewards, MileagePlus, SkyMiles, AAdvantage with number
             /\b(?:rapid\s*rewards?|mileage\s*plus|sky\s*miles?|aadvantage|frequent\s*flyer)(?:\s*(?:#|number|no\.?|id|account)?:?\s*)[0-9]{8,12}\b/gi,
+            // Generic "ID: XXXX" pattern (Loan ID, Item ID, etc.)
+            /\b[A-Za-z]+\s*ID:?\s*[A-Z0-9\-]{4,20}\b/gi,
         ],
         replacement: '[REDACTED_MEMBER_ID]',
     },
@@ -672,6 +665,8 @@ const PATTERNS: RedactionPattern[] = [
             /\$[0-9,]+\.[0-9]{2}\b/g,
             // $1,234 or $1234 (no cents)
             /\$[0-9,]+\b/g,
+            // Spaced amounts: $ 24 . 47 or $ 50 . 00
+            /\$\s*[0-9]+\s*\.\s*[0-9]{2}\b/g,
             // Amount: $1234, Balance: $1234, Total: $1234
             /\b(?:amount|balance|total|payment|price|cost|fee|charge)(?:\s*(?:of|is|was|:)?\s*)\$[0-9,]+(?:\.[0-9]{2})?\b/gi,
         ],
@@ -705,10 +700,7 @@ export interface SanitizeResult {
     redactionsByCategory: Record<RedactionCategory, number>;
 }
 
-export function sanitizeText(
-    text: string,
-    options: SanitizeOptions,
-): SanitizeResult {
+export function sanitizeText(text: string, options: SanitizeOptions): SanitizeResult {
     if (!options.enabled || !text) {
         return {
             text,
@@ -719,10 +711,7 @@ export function sanitizeText(
 
     let result = text;
     let totalCount = 0;
-    const countsByCategory: Record<RedactionCategory, number> = {} as Record<
-        RedactionCategory,
-        number
-    >;
+    const countsByCategory: Record<RedactionCategory, number> = {} as Record<RedactionCategory, number>;
 
     // Initialize counts
     for (const cat of ALL_REDACTION_CATEGORIES) {
@@ -738,7 +727,7 @@ export function sanitizeText(
         for (const regex of pattern.patterns) {
             // Reset regex state
             regex.lastIndex = 0;
-
+            
             // Count matches
             const matches = result.match(regex);
             if (matches) {
@@ -758,10 +747,6 @@ export function sanitizeText(
     };
 }
 
-export function getCategoryInfo(category: RedactionCategory): {
-    name: string;
-    description: string;
-    default: boolean;
-} {
+export function getCategoryInfo(category: RedactionCategory): { name: string; description: string; default: boolean } {
     return REDACTION_CATEGORIES[category];
 }
