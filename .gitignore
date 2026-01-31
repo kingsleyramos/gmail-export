@@ -1,32 +1,34 @@
-# --- Secrets / Credentials ---
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Credentials & tokens (NEVER commit these!)
 credentials.json
 token.json
 
-# --- Generated Outputs ---
-gmail_export.csv
-gmail_export_v2.csv
+# User config (may contain sensitive info)
+gmail-export.config.json
+
+# Export outputs
+exports/
 *.csv
 
-# --- Node ---
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# --- TypeScript ---
-*.tsbuildinfo
-
-# --- Build output (if you ever compile) ---
-dist/
-build/
-
-# --- OS / Editor junk ---
+# OS files
 .DS_Store
 Thumbs.db
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# --- Env files (if added later) ---
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
 .env
-.env.*
+.env.local

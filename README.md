@@ -1,161 +1,262 @@
-# gmail-export
+# 📧 gmail-export
 
-Export structured metadata from a Gmail account using the Gmail API, Node.js, and TypeScript. This exports headers/snippets (and optionally body, depending on the script you run). Attachments are not downloaded; attachment info is inferred from MIME metadata.
+Export structured metadata from your Gmail account to CSV files. Easy to use, highly customizable.
 
-## What this project does
+## Features
 
--   Authenticates to Gmail via OAuth (read-only)
--   Paginates through your mailbox
--   Writes rows to CSV
+- 🎯 **Interactive setup mode** - Guided prompts walk you through configuration
+- ⚙️ **Flexible configuration** - Use config files, CLI arguments, or both
+- 📊 **21 exportable fields** - From basic (sender, subject) to detailed (body text, thread IDs)
+- 📁 **Smart output management** - Timestamped filenames, automatic file splitting for large exports
+- 🔐 **Read-only access** - Uses Gmail's read-only scope (cannot modify your emails)
 
-Your package is configured as an ESM project (`"type": "module"`).
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Run interactive setup (recommended for first-time users)
+npm run interactive
+
+# Or run with defaults
+npm run export
+```
 
 ## Requirements
 
--   Node.js v18+ (v20+ recommended). Your deps also work on newer Node, but `--loader ts-node/esm` prints warnings on recent Node versions (this is expected).
--   A Gmail or Google Workspace account
+- **Node.js** v18 or higher (v20+ recommended)
+- **Gmail or Google Workspace account**
+- **Gmail API credentials** (see [Setup Guide](#gmail-api-setup))
 
-## One-time Google Cloud setup
-
-### 1. Create a Google Cloud project
-
-1. Go to Google Cloud Console
-2. Create a new project (or select an existing one)
-
-### 2. Enable the Gmail API
-
-1. Go to “APIs & Services” → “Library”
-2. Search for “Gmail API”
-3. Click “Enable” ([Google for Developers][1])
-
-If you skip this, you’ll get:
-`Gmail API has not been used in project ... or it is disabled` (403).
-
-### 3. Configure OAuth consent screen (fixes the 403 “only developer-approved testers”)
-
-1. Go to “APIs & Services” → “OAuth consent screen”
-2. Pick **External** (typical for personal Gmail)
-3. Fill out the required fields (app name, support email, etc.)
-4. In **Audience**, add your Gmail address under **Test users** ([Google for Developers][2])
-
-If you don’t add yourself as a test user while the app is in Testing mode, Google blocks sign-in with:
-`Error 403: access_denied ... can only be accessed by developer-approved testers`.
-
-### 4. Create OAuth Client ID (Desktop app)
-
-1. Go to “APIs & Services” → “Credentials”
-2. “Create Credentials” → “OAuth client ID”
-3. Application type: **Desktop app**
-4. Download the JSON
-5. Save it into the project root as `credentials.json`
-
-Your repo expects a desktop-app credential JSON with `redirect_uris` including `http://localhost`.
-
-## Local install
+## Installation
 
 ```bash
+git clone https://github.com/kingsleyramos/gmail-export.git
+cd gmail-export
 npm install
 ```
 
-Your dependencies are `googleapis` and `@google-cloud/local-auth`.
+## Gmail API Setup
 
-## Runn Default script
+First-time users need to set up Gmail API access. Run the built-in guide:
 
-Your current `package.json` has:
+```bash
+npm run setup
+```
 
--   `npm run export` → runs `exportGmail_v2_with_body_split.ts`
+Or follow these steps:
 
-Run:
+### 1. Create a Google Cloud Project
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project (e.g., "Gmail Export")
+
+### 2. Enable Gmail API
+1. Go to **APIs & Services → Library**
+2. Search for "Gmail API" and click **Enable**
+
+### 3. Configure OAuth Consent Screen
+1. Go to **APIs & Services → OAuth consent screen**
+2. Select **External** → Create
+3. Fill required fields (app name, support email)
+4. **Important:** Add your Gmail address as a **Test User**
+
+### 4. Create OAuth Credentials
+1. Go to **APIs & Services → Credentials**
+2. Click **Create Credentials → OAuth client ID**
+3. Select **Desktop app**
+4. Download JSON and save as `credentials.json` in project root
+
+## Usage
+
+### Interactive Mode (Recommended)
+
+```bash
+npm run interactive
+```
+
+This walks you through:
+- Selecting which emails to export
+- Choosing fields to include
+- Configuring output settings
+- Optionally saving your settings for future use
+
+### Quick Export with Defaults
 
 ```bash
 npm run export
 ```
 
-### First run authentication
+Exports received mail (excluding sent, spam, trash) with default fields.
 
-On first run, the script prints an authorization URL. Open it, sign in, and c from the `http://localhost/?code=...` URL back into the terminal.
+### Using CLI Arguments
 
-A `token.json` will be written locally and reused on future runs (so you don’t have to re-auth every time). Do not commit this file.
+```bash
+# Export emails from a specific sender
+npm run export -- --query "from:newsletter@example.com"
 
-## Output files
+# Export only 100 emails (for testing)
+npm run export -- --max-messages 100
 
-Your CSV output filename depends on the script you run (v2/v2-with-body/split variants). The earlier README you had indicate:
+# Export specific fields
+npm run export -- --fields "from_email,subject,date,body_text"
 
--   from_email
--   from_name
--   sender_domain
--   reply_to_domain
--   delivered_to
--   subject
--   snippet
--   has_attachment
--   attachment_types
--   has_list_unsubscribe
+# Custom output location
+npm run export -- --output-dir ./my-backup --prefix my_emails
 
-## Which emails are included/excluded
-
-A common default query for your exporters is:
-
--   Exclude sent mail
--   Exclude spam
--   Exclude trash
-
-Exery:
-
-```ts
--in:sent -in:spam -in:trash
+# Skip timestamp in filename
+npm run export -- --no-timestamp
 ```
 
-So by default you export received mail and exclude spam/trash/sent.
+### Using a Config File
 
-If you ever see sent mail included, check the script’s `q:` value passed into `gmail.users.messages.list(...)`.
+Create `gmail-export.config.json` in your project root:
 
-## Cost / billing
-
--   Gmail quire you to attach a billing account for this kind of personal export.
--   You are limited by quotas/rate limits, not per-request charges.
--   Running two scripts at the same time does not “double charge” you; it just increases API traffic and makes you more likely to hit quota/rate limits.
-
-(If you hit rate limits, the fix is to reduce concurrency and/or add backoff.)
-
-## Security and git hygiene
-
-Do not commit:
-
--   `credentials.json` (OAuth client secret)
--   `token.json` (refresh token access)
--   any exported CSVs (they contain personal email data)
-
-Minimum recommended `.gitignore`:
-
-```gitignore
-# secrets
-credentials.json
-token.json
-
-# exports
-*.csv
-
-# node
-node_modules/
-
-# logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+```json
+{
+    "query": "-in:sent -in:spam -in:trash",
+    "maxMessages": 0,
+    "outputDir": "./exports",
+    "outputPrefix": "gmail_export",
+    "includeTimestamp": true,
+    "fields": [
+        "from_email",
+        "from_name",
+        "subject",
+        "date",
+        "snippet"
+    ]
+}
 ```
+
+Or generate a sample config:
+
+```bash
+npm run export -- --init
+```
+
+## CLI Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--interactive` | `-i` | Launch interactive setup mode |
+| `--setup` | | Show Gmail API setup guide |
+| `--init` | | Create sample config file |
+| `--list-fields` | | Show all available export fields |
+| `--config <path>` | `-c` | Path to config file |
+| `--query <query>` | `-q` | Gmail search query |
+| `--max-messages <n>` | `-m` | Limit number of messages (0 = unlimited) |
+| `--output-dir <dir>` | `-o` | Output directory |
+| `--prefix <name>` | `-p` | Output filename prefix |
+| `--fields <list>` | `-f` | Comma-separated list of fields |
+| `--no-timestamp` | | Don't add timestamp to filename |
+| `--body-max-chars <n>` | | Max characters for body_text |
+| `--credentials <path>` | | Path to credentials.json |
+| `--help` | `-h` | Show help |
+
+## Configuration Priority
+
+Settings are merged in this order (later overrides earlier):
+
+1. **Defaults** - Built-in sensible defaults
+2. **Config file** - `gmail-export.config.json`
+3. **CLI arguments** - Command-line flags
+
+## Output
+
+Exports are saved to the `exports/` directory by default.
+
+### Filename Format
+
+```
+{prefix}_{timestamp}.csv
+{prefix}_{timestamp}_part002.csv  (if split)
+```
+
+Example: `gmail_export_20250129_143052.csv`
+
+### File Splitting
+
+Large exports are automatically split at 250MB per file. Customize with `maxBytesPerFile` in config.
+
+## Available Fields
+
+Run `npm run export -- --list-fields` to see all fields with descriptions.
+
+| Category | Fields |
+|----------|--------|
+| **Sender** | `from_email`, `from_name`, `sender_domain`, `reply_to`, `reply_to_domain` |
+| **Recipient** | `delivered_to`, `to`, `cc`, `bcc` |
+| **Content** | `subject`, `snippet`, `body_text`, `body_html` |
+| **Metadata** | `date`, `message_id`, `thread_id`, `labels` |
+| **Attachments** | `has_attachment`, `attachment_types`, `attachment_count`, `has_list_unsubscribe` |
+
+See [docs/FIELDS.md](docs/FIELDS.md) for detailed descriptions.
+
+## Common Queries
+
+| What you want | Query |
+|--------------|-------|
+| All received mail | `-in:sent -in:spam -in:trash` |
+| Inbox only | `in:inbox` |
+| From specific sender | `from:example@gmail.com` |
+| With attachments | `has:attachment` |
+| Starred emails | `is:starred` |
+| Unread emails | `is:unread` |
+| Date range | `after:2024/01/01 before:2024/12/31` |
+| By label | `label:important` |
+| Search content | `subject:invoice` or `"invoice"` |
+
+Combine queries: `from:amazon.com has:attachment after:2024/01/01`
+
+## Project Structure
+
+```
+gmail-export/
+├── src/                    # Source code
+│   ├── index.ts           # CLI entry point
+│   ├── config.ts          # Configuration loading
+│   ├── interactive.ts     # Interactive prompts
+│   ├── auth.ts            # Gmail OAuth
+│   ├── exporter.ts        # Export logic
+│   ├── parser.ts          # Email parsing
+│   ├── csv.ts             # CSV output
+│   └── types.ts           # TypeScript types
+├── config/                 # Config templates
+├── docs/                   # Additional documentation
+├── exports/                # Output directory (gitignored)
+├── credentials.json        # Your OAuth credentials (gitignored)
+├── token.json             # Auth token (gitignored)
+└── gmail-export.config.json # Your config (optional)
+```
+
+## Security
+
+**Do not commit these files:**
+- `credentials.json` - OAuth client secret
+- `token.json` - Your refresh token
+- `exports/*.csv` - Personal email data
+- `gmail-export.config.json` - May contain sensitive queries
+
+These are already in `.gitignore`.
 
 ## Troubleshooting
 
-### “Error 403: access_denied … only developer-approved testers”
+### "Error 403: access_denied"
+Add yourself as a Test User in OAuth consent screen.
 
--   Add your Gmail account as a **Test user** in OAuth consent screen while the app is in Testing mode. ([Google for Developers][2])
+### "Gmail API has not been used in project..."
+Enable Gmail API in your Google Cloud project.
 
-### “Gmail API has not been used in project … or it is disabled”
+### "redirect_uri_mismatch"
+Make sure you created a "Desktop app" credential, not "Web".
 
--   Enable Gmail API in your project. ([Google for Developers][1])
+### Rate limit errors
+Reduce concurrency or add delays. The Gmail API has quotas.
 
-### Node prints `ExperimentalWarning: --experimental-loader`
+### Node experimental warnings
+Expected with `--loader ts-node/esm` on newer Node versions. Safe to ignore.
 
--   Expected when running `node --loader ts-node/esm ...` on newer Node versions. It’s noisy but not the root cause of failures.
+## License
+
+ISC

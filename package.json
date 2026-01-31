@@ -1,31 +1,53 @@
 {
     "name": "gmail-export",
-    "version": "1.0.0",
-    "description": "",
-    "main": "index.js",
+    "version": "2.0.0",
+    "description": "Export Gmail metadata to CSV with an easy-to-use CLI",
+    "main": "dist/index.js",
+    "type": "module",
+    "bin": {
+        "gmail-export": "./dist/index.js"
+    },
     "scripts": {
-        "export": "node --loader ts-node/esm exportGmail_v2_with_body_split.ts",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "build": "tsc",
+        "start": "tsx src/index.ts",
+        "export": "tsx src/index.ts",
+        "interactive": "tsx src/index.ts --interactive",
+        "setup": "tsx src/index.ts --setup",
+        "dev": "tsx watch src/index.ts",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist"
     },
     "repository": {
         "type": "git",
         "url": "git+https://github.com/kingsleyramos/gmail-export.git"
     },
-    "keywords": [],
+    "keywords": [
+        "gmail",
+        "export",
+        "email",
+        "csv",
+        "backup",
+        "cli"
+    ],
     "author": "",
     "license": "ISC",
-    "type": "module",
     "bugs": {
         "url": "https://github.com/kingsleyramos/gmail-export/issues"
     },
     "homepage": "https://github.com/kingsleyramos/gmail-export#readme",
+    "engines": {
+        "node": ">=18.0.0"
+    },
     "dependencies": {
         "@google-cloud/local-auth": "^3.0.1",
-        "googleapis": "^170.1.0"
+        "@inquirer/prompts": "^7.3.2",
+        "chalk": "^5.4.1",
+        "googleapis": "^170.1.0",
+        "log-update": "^6.1.0"
     },
     "devDependencies": {
-        "@types/node": "^25.0.10",
-        "ts-node": "^10.9.2",
+        "@types/node": "^22.0.0",
+        "tsx": "^4.19.0",
         "typescript": "^5.9.3"
     }
 }
