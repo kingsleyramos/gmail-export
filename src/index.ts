@@ -28,7 +28,7 @@ async function main() {
         process.exit(0);
     }
 
-    if (args.setup) {
+    if (args.guide) {
         showSetupGuide();
         process.exit(0);
     }
@@ -46,7 +46,7 @@ async function main() {
     // Load configuration
     let config;
 
-    if (args.interactive) {
+    if (args.setup) {
         // Interactive mode - guided setup
         config = await runInteractiveSetup();
     } else {
@@ -57,7 +57,10 @@ async function main() {
     }
 
     // Resolve paths relative to cwd
-    config.credentialsPath = path.resolve(process.cwd(), config.credentialsPath);
+    config.credentialsPath = path.resolve(
+        process.cwd(),
+        config.credentialsPath,
+    );
     config.tokenPath = path.resolve(process.cwd(), config.tokenPath);
     config.outputDir = path.resolve(process.cwd(), config.outputDir);
 

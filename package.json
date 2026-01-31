@@ -11,8 +11,8 @@
         "build": "tsc",
         "start": "tsx src/index.ts",
         "export": "tsx src/index.ts",
-        "interactive": "tsx src/index.ts --interactive",
         "setup": "tsx src/index.ts --setup",
+        "guide": "tsx src/index.ts --guide",
         "dev": "tsx watch src/index.ts",
         "typecheck": "tsc --noEmit",
         "clean": "rm -rf dist"

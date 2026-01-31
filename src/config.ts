@@ -132,7 +132,7 @@ export interface CLIArgs {
     noTimestamp?: boolean;
     bodyMaxChars?: number;
     credentialsPath?: string;
-    interactive?: boolean;
+    guide?: boolean;
     setup?: boolean;
     help?: boolean;
     listFields?: boolean;
@@ -188,12 +188,12 @@ export function parseArgs(argv: string[]): CLIArgs {
                 if (next) args.credentialsPath = next;
                 i++;
                 break;
-            case '-i':
-            case '--interactive':
-                args.interactive = true;
-                break;
+            case '-s':
             case '--setup':
                 args.setup = true;
+                break;
+            case '--guide':
+                args.guide = true;
                 break;
             case '-h':
             case '--help':
