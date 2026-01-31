@@ -6,9 +6,9 @@ Export structured metadata from your Gmail account to CSV files. Easy to use, hi
 
 - **Interactive setup mode** - Guided prompts walk you through configuration
 - **Flexible configuration** - Use config files, CLI arguments, or both
-- 📊 **21 exportable fields** - From basic (sender, subject) to detailed (body text, thread IDs)
-- 📁 **Smart output management** - Timestamped filenames, automatic file splitting for large exports
-- 🔐 **Read-only access** - Uses Gmail's read-only scope (cannot modify your emails)
+- **21 exportable fields** - From basic (sender, subject) to detailed (body text, thread IDs)
+- **Smart output management** - Timestamped filenames, automatic file splitting for large exports
+- **Read-only access** - Uses Gmail's read-only scope (cannot modify your emails)
 
 ## Quick Start
 
