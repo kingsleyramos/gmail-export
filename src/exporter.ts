@@ -13,6 +13,7 @@ import {
     collectAttachmentTypes,
     extractBodyText,
     extractBodyHtml,
+    cleanText,
 } from './parser.js';
 import {sanitizeText} from './sanitizer.js';
 
@@ -52,7 +53,7 @@ class ProgressDisplay {
     start(progressCallback: () => void): void {
         this.frameIndex = 0;
         this.progressCallback = progressCallback;
-        
+
         // Initial progress update
         if (this.progressCallback) {
             this.progressCallback();
@@ -101,7 +102,7 @@ class ProgressDisplay {
 
 export async function runExport(
     auth: OAuth2Client,
-    config: ExportConfig
+    config: ExportConfig,
 ): Promise<ExportStats> {
     const gmail = google.gmail({version: 'v1', auth});
 
@@ -113,14 +114,22 @@ export async function runExport(
     console.log(chalk.cyan.bold('\n📬 Export Details'));
     console.log(chalk.dim('─'.repeat(50)));
     console.log(`  ${chalk.dim('Account:')}     ${chalk.white(emailAddress)}`);
-    console.log(`  ${chalk.dim('Mailbox:')}     ${chalk.yellow(mailboxTotal.toLocaleString())} total messages`);
+    console.log(
+        `  ${chalk.dim('Mailbox:')}     ${chalk.yellow(mailboxTotal.toLocaleString())} total messages`,
+    );
     console.log(`  ${chalk.dim('Query:')}       ${chalk.white(config.query)}`);
-    console.log(`  ${chalk.dim('Fields:')}      ${chalk.white(String(config.fields.length))} selected`);
+    console.log(
+        `  ${chalk.dim('Fields:')}      ${chalk.white(String(config.fields.length))} selected`,
+    );
     if (config.maxMessages > 0) {
-        console.log(`  ${chalk.dim('Limit:')}       ${chalk.yellow(config.maxMessages.toLocaleString())} messages`);
+        console.log(
+            `  ${chalk.dim('Limit:')}       ${chalk.yellow(config.maxMessages.toLocaleString())} messages`,
+        );
     }
     if (config.sanitize.enabled) {
-        console.log(`  ${chalk.dim('Redaction:')}   ${chalk.green(config.sanitize.categories.length + ' categories enabled')}`);
+        console.log(
+            `  ${chalk.dim('Redaction:')}   ${chalk.green(config.sanitize.categories.length + ' categories enabled')}`,
+        );
     }
 
     // Initialize output
@@ -133,9 +142,13 @@ export async function runExport(
     });
 
     console.log(chalk.dim('─'.repeat(50)));
-    console.log(`  ${chalk.dim('Output:')}      ${chalk.white(output.getCurrentPath())}`);
+    console.log(
+        `  ${chalk.dim('Output:')}      ${chalk.white(output.getCurrentPath())}`,
+    );
     if (config.maxBytesPerFile > 0) {
-        console.log(`  ${chalk.dim('Split at:')}    ${chalk.white(formatBytes(config.maxBytesPerFile))} per file`);
+        console.log(
+            `  ${chalk.dim('Split at:')}    ${chalk.white(formatBytes(config.maxBytesPerFile))} per file`,
+        );
     }
 
     // Progress tracking
@@ -153,7 +166,8 @@ export async function runExport(
 
         let rate = 0;
         const first = samples.length > 0 ? samples[0] : undefined;
-        const last = samples.length > 0 ? samples[samples.length - 1] : undefined;
+        const last =
+            samples.length > 0 ? samples[samples.length - 1] : undefined;
 
         if (first && last && first !== last) {
             const dt = (last.tMs - first.tMs) / 1000;
@@ -168,8 +182,11 @@ export async function runExport(
                 ? Math.min(mailboxTotal, config.maxMessages)
                 : mailboxTotal;
         const pct =
-            effectiveTotal > 0 ? Math.min(100, (count / effectiveTotal) * 100) : NaN;
-        const remaining = effectiveTotal > 0 ? Math.max(0, effectiveTotal - count) : 0;
+            effectiveTotal > 0
+                ? Math.min(100, (count / effectiveTotal) * 100)
+                : NaN;
+        const remaining =
+            effectiveTotal > 0 ? Math.max(0, effectiveTotal - count) : 0;
         const etaSec = rate > 0 ? remaining / rate : Infinity;
 
         const pctStr = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : '—';
@@ -177,14 +194,17 @@ export async function runExport(
         const bar = Number.isFinite(pct) ? progressBar(pct) : progressBar(0);
 
         const line = `${bar} ${chalk.cyan(count.toLocaleString().padStart(8))} exported  ${chalk.yellow(pctStr.padStart(6))}  ${chalk.dim('|')}  ${chalk.green(rateStr.padStart(8))}  ${chalk.dim('|')}  ETA: ${chalk.magenta(formatSeconds(etaSec).padStart(8))}  ${chalk.dim('|')}  ${chalk.dim(formatBytes(output.getBytesWritten()).padStart(10))}`;
-        
+
         progress.updateLine(line);
     };
 
     // Determine which fields need body content
     const needsBody =
-        config.fields.includes('body_text') || config.fields.includes('body_html');
-    const fieldsForGmail = needsBody ? 'snippet,payload,labelIds,threadId' : 'snippet,payload,labelIds,threadId';
+        config.fields.includes('body_text') ||
+        config.fields.includes('body_html');
+    const fieldsForGmail = needsBody
+        ? 'snippet,payload,labelIds,threadId'
+        : 'snippet,payload,labelIds,threadId';
 
     console.log('\n' + chalk.green.bold('🚀 Starting export...') + '\n');
 
@@ -240,18 +260,52 @@ export async function runExport(
 
     // Final summary
     console.log(chalk.green.bold('\n✅ Export Complete!\n'));
-    console.log(chalk.cyan('╔══════════════════════════════════════════════════════╗'));
-    console.log(chalk.cyan('║') + chalk.bold.white('                    Summary                            ') + chalk.cyan('║'));
-    console.log(chalk.cyan('╠══════════════════════════════════════════════════════╣'));
-    console.log(chalk.cyan('║') + `  ${chalk.dim('Emails exported:')}  ${chalk.green.bold(count.toLocaleString().padStart(10))}                    ` + chalk.cyan('║'));
-    console.log(chalk.cyan('║') + `  ${chalk.dim('Total time:')}       ${chalk.yellow(formatSeconds(totalSec).padStart(10))}                    ` + chalk.cyan('║'));
-    console.log(chalk.cyan('║') + `  ${chalk.dim('Average speed:')}    ${chalk.green((finalRate.toFixed(2) + '/s').padStart(10))}                    ` + chalk.cyan('║'));
-    console.log(chalk.cyan('║') + `  ${chalk.dim('Total size:')}       ${chalk.yellow(formatBytes(output.getBytesWritten()).padStart(10))}                    ` + chalk.cyan('║'));
-    console.log(chalk.cyan('║') + `  ${chalk.dim('Files created:')}    ${chalk.white(String(filesCreated.length).padStart(10))}                    ` + chalk.cyan('║'));
-    console.log(chalk.cyan('╚══════════════════════════════════════════════════════╝'));
-    
+    console.log(
+        chalk.cyan('╔══════════════════════════════════════════════════════╗'),
+    );
+    console.log(
+        chalk.cyan('║') +
+            chalk.bold.white(
+                '                    Summary                            ',
+            ) +
+            chalk.cyan('║'),
+    );
+    console.log(
+        chalk.cyan('╠══════════════════════════════════════════════════════╣'),
+    );
+    console.log(
+        chalk.cyan('║') +
+            `  ${chalk.dim('Emails exported:')}  ${chalk.green.bold(count.toLocaleString().padStart(10))}                    ` +
+            chalk.cyan('║'),
+    );
+    console.log(
+        chalk.cyan('║') +
+            `  ${chalk.dim('Total time:')}       ${chalk.yellow(formatSeconds(totalSec).padStart(10))}                    ` +
+            chalk.cyan('║'),
+    );
+    console.log(
+        chalk.cyan('║') +
+            `  ${chalk.dim('Average speed:')}    ${chalk.green((finalRate.toFixed(2) + '/s').padStart(10))}                    ` +
+            chalk.cyan('║'),
+    );
+    console.log(
+        chalk.cyan('║') +
+            `  ${chalk.dim('Total size:')}       ${chalk.yellow(formatBytes(output.getBytesWritten()).padStart(10))}                    ` +
+            chalk.cyan('║'),
+    );
+    console.log(
+        chalk.cyan('║') +
+            `  ${chalk.dim('Files created:')}    ${chalk.white(String(filesCreated.length).padStart(10))}                    ` +
+            chalk.cyan('║'),
+    );
+    console.log(
+        chalk.cyan('╚══════════════════════════════════════════════════════╝'),
+    );
+
     console.log(chalk.dim('\n  Output files:'));
-    filesCreated.forEach((f) => console.log(chalk.dim('    •') + ` ${chalk.white(f)}`));
+    filesCreated.forEach((f) =>
+        console.log(chalk.dim('    •') + ` ${chalk.white(f)}`),
+    );
     console.log('');
 
     return {
@@ -264,7 +318,7 @@ export async function runExport(
 
 function extractFields(
     msg: gmail_v1.Schema$Message,
-    config: ExportConfig
+    config: ExportConfig,
 ): Record<ExportField, string> {
     const payload = msg.payload;
     const headers = payload?.headers;
@@ -321,7 +375,9 @@ function extractFields(
                 row.reply_to = replyToEmail;
                 break;
             case 'reply_to_domain':
-                row.reply_to_domain = replyToEmail ? domainFromEmail(replyToEmail) : '';
+                row.reply_to_domain = replyToEmail
+                    ? domainFromEmail(replyToEmail)
+                    : '';
                 break;
             case 'delivered_to':
                 row.delivered_to = deliveredTo;
@@ -335,12 +391,24 @@ function extractFields(
             case 'bcc':
                 row.bcc = getHeader(headers, 'Bcc');
                 break;
-            case 'subject':
-                row.subject = getHeader(headers, 'Subject');
+            case 'subject': {
+                let subject = cleanText(getHeader(headers, 'Subject'));
+                if (config.sanitize.enabled) {
+                    const result = sanitizeText(subject, config.sanitize);
+                    subject = result.text;
+                }
+                row.subject = subject;
                 break;
-            case 'snippet':
-                row.snippet = msg.snippet ?? '';
+            }
+            case 'snippet': {
+                let snippet = cleanText(msg.snippet ?? '');
+                if (config.sanitize.enabled) {
+                    const result = sanitizeText(snippet, config.sanitize);
+                    snippet = result.text;
+                }
+                row.snippet = snippet;
                 break;
+            }
             case 'date':
                 row.date = getHeader(headers, 'Date');
                 break;

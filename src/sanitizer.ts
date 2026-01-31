@@ -2,30 +2,35 @@
 // Personal information redaction for email exports
 
 export type RedactionCategory =
-    // Security - ON by default
+    // Security/Privacy - ON by default
     | 'credit_cards'
     | 'bank_accounts'
     | 'tax_ids'
     | 'passwords'
     | 'api_keys'
     | 'otp_codes'
-    | 'token_urls'
-    // Contact - ON by default
     | 'phone_numbers'
     | 'physical_addresses'
     | 'ip_addresses'
-    // Identity/PII - ON by default
     | 'government_ids'
+    | 'token_urls'
+    | 'case_numbers'
+    | 'claim_numbers'
+    | 'auth_codes'
+    | 'device_ids'
+    | 'employee_ids'
+    // Identity/PII - ON by default
     | 'dates_of_birth'
     | 'ages'
     | 'member_ids'
     | 'vehicle_ids'
     | 'medical_ids'
-    // Optional - OFF by default
+    // Optional - OFF by default (useful for analysis)
     | 'email_addresses'
     | 'order_numbers'
     | 'tracking_numbers'
     | 'booking_references'
+    | 'financial_amounts'
     | 'regular_urls';
 
 export interface RedactionPattern {
@@ -98,15 +103,35 @@ export const REDACTION_CATEGORIES: Record<
         description: 'Password reset links, unsubscribe links, tracking URLs',
         default: true,
     },
+    case_numbers: {
+        name: 'Case/Ticket Numbers',
+        description: 'Support case numbers, ticket IDs, incident numbers',
+        default: true,
+    },
+    claim_numbers: {
+        name: 'Claim Numbers',
+        description: 'Insurance claims, warranty claims, dispute IDs',
+        default: true,
+    },
+    auth_codes: {
+        name: 'Authorization Codes',
+        description: 'Transaction auth codes, approval codes',
+        default: true,
+    },
+    device_ids: {
+        name: 'Device IDs',
+        description: 'Device identifiers, hardware IDs',
+        default: true,
+    },
+    employee_ids: {
+        name: 'Employee/Student IDs',
+        description: 'Employee ID numbers, student IDs',
+        default: true,
+    },
 
     // ═══════════════════════════════════════════════════════════════════
     // PII - ON by default (identifiable personal information)
     // ═══════════════════════════════════════════════════════════════════
-    email_addresses: {
-        name: 'Email Addresses (in body)',
-        description: 'Email addresses mentioned in email body text',
-        default: false, // Often needed for relationship analysis
-    },
     dates_of_birth: {
         name: 'Dates of Birth',
         description: 'Birth dates and DOB references',
@@ -137,6 +162,11 @@ export const REDACTION_CATEGORIES: Record<
     // ═══════════════════════════════════════════════════════════════════
     // OPTIONAL - OFF by default (often useful for analysis)
     // ═══════════════════════════════════════════════════════════════════
+    email_addresses: {
+        name: 'Email Addresses (in body)',
+        description: 'Email addresses mentioned in email body text',
+        default: false,
+    },
     order_numbers: {
         name: 'Order Numbers',
         description: 'Order IDs, confirmation numbers, invoice numbers',
@@ -150,6 +180,11 @@ export const REDACTION_CATEGORIES: Record<
     booking_references: {
         name: 'Booking References',
         description: 'Flight, hotel, and travel confirmation codes',
+        default: false,
+    },
+    financial_amounts: {
+        name: 'Financial Amounts',
+        description: 'Dollar amounts, prices, balances, payments',
         default: false,
     },
     regular_urls: {
@@ -174,7 +209,7 @@ const PATTERNS: RedactionPattern[] = [
     {
         category: 'credit_cards',
         name: 'Credit Card Numbers',
-        description: 'Visa, Mastercard, Amex, Discover',
+        description: 'Visa, Mastercard, Amex, Discover, and other card numbers',
         patterns: [
             // Visa: starts with 4, 16 digits
             /\b4[0-9]{3}[\s\-]?[0-9]{4}[\s\-]?[0-9]{4}[\s\-]?[0-9]{4}\b/g,
@@ -187,7 +222,25 @@ const PATTERNS: RedactionPattern[] = [
             // Generic 16-digit card pattern with separators
             /\b[0-9]{4}[\s\-][0-9]{4}[\s\-][0-9]{4}[\s\-][0-9]{4}\b/g,
             // Card ending in XXXX pattern
-            /\b(?:card|ending|last\s*4)(?:\s+(?:in|digits?|number)?:?\s*)[0-9]{4}\b/gi,
+            /\b(?:card|ending|ends|last\s*4)(?:\s+(?:in|digits?|number)?:?\s*)[0-9]{4}\b/gi,
+            // Masked card numbers: ...1234, ***1234, ****1234, xx1234, XXXX1234
+            /\.{2,}[0-9]{4}\b/g,
+            /\*{2,}[0-9]{4}\b/g,
+            /[xX]{2,}[0-9]{4}\b/g,
+            // Masked with parentheses: (...1234)
+            /\(\.\.\.[0-9]{4}\)/g,
+            // Longer masked patterns: ************1234
+            /[\*xX]{4,}[0-9]{4}\b/gi,
+            // "Your PRONTO card 00000165253200929291" or "Your card 12345678"
+            /\b(?:your|my|the)\s+(?:\w+\s+)?card\s+[0-9]{8,20}\b/gi,
+            // "Card Number: 00000202142394429291"
+            /\bcard\s*(?:#|number|no\.?)?:?\s*[0-9]{8,20}\b/gi,
+            // "Control number: 9233092843182617"
+            /\bcontrol\s*(?:#|number|no\.?)?:?\s*[0-9]{8,20}\b/gi,
+            // "Agreement Number: 278474585774" or "Plan Agreement Number"
+            /\b(?:\w+\s+)?agreement\s*(?:#|number|no\.?)?:?\s*[0-9]{8,20}\b/gi,
+            // Generic "number: XXXXXXXX" with 8+ digits
+            /\bnumber:?\s*[0-9]{8,20}\b/gi,
         ],
         replacement: '[REDACTED_CARD]',
     },
@@ -276,14 +329,26 @@ const PATTERNS: RedactionPattern[] = [
         name: 'OTP/Verification Codes',
         description: 'One-time passwords and verification codes',
         patterns: [
-            // Verification code patterns
-            /\b(?:verification|confirmation|security|auth(?:entication)?|otp|one[\s\-]?time)\s*(?:code|pin|number)(?:\s*(?:is|was|:)\s*)[0-9]{4,8}\b/gi,
-            // Your code is: XXXXXX
-            /\b(?:your|the)\s+(?:code|pin|otp)(?:\s+(?:is|was|:)\s*)[0-9]{4,8}\b/gi,
-            // Code: XXXXXX standalone
-            /\b(?:code|otp|pin)(?:\s*:\s*)[0-9]{4,8}\b/gi,
-            // 2FA codes
-            /\b(?:2fa|two[\s\-]?factor|mfa)\s*(?:code)?(?:\s*(?:is|was|:)\s*)[0-9]{4,8}\b/gi,
+            // "verification code is: 123456" or "verification code: 123456"
+            /\b(?:verification|confirmation|security|authentication|otp)\s+code\s*(?:is|was)?:?\s*[0-9]{4,8}\b/gi,
+            // "one-time code...123456" or "one time code is 123456" or "This one-time code...169243"
+            /\bone[\s\-]?time\s+(?:code|password|passcode)[^0-9]*[0-9]{4,8}\b/gi,
+            // "code is only valid...169243" - code at end after colon
+            /\bcode\s+(?:is\s+)?(?:only\s+)?valid[^0-9]*[0-9]{4,8}\b/gi,
+            // "Your code is: 123456" or "Your code: 123456"
+            /\b(?:your|the)\s+(?:code|pin|otp|passcode)\s*(?:is|was)?:?\s*[0-9]{4,8}\b/gi,
+            // "code is: 123456" or "code: 123456" standalone
+            /\bcode\s*(?:is|was)?:?\s*[0-9]{4,8}\b/gi,
+            // "PIN: 1234" or "OTP: 123456"
+            /\b(?:pin|otp)\s*:?\s*[0-9]{4,8}\b/gi,
+            // 2FA/MFA codes
+            /\b(?:2fa|two[\s\-]?factor|mfa)\s*(?:code)?\s*(?:is|was)?:?\s*[0-9]{4,8}\b/gi,
+            // "Enter 123456" or "enter code 123456"
+            /\benter\s+(?:code\s+)?[0-9]{4,8}\b/gi,
+            // Just a 6-digit number after "is:" or "is :"
+            /\bis\s*:\s*[0-9]{6}\b/gi,
+            // "valid for X minutes: 123456" pattern
+            /\bvalid\s+(?:for\s+)?[0-9]+\s*(?:minutes?|mins?|hours?|hrs?)[^0-9]*[0-9]{4,8}\b/gi,
         ],
         replacement: '[REDACTED_CODE]',
     },
@@ -298,12 +363,14 @@ const PATTERNS: RedactionPattern[] = [
         patterns: [
             // US/Canada: (XXX) XXX-XXXX, XXX-XXX-XXXX, XXX.XXX.XXXX
             /\b(?:\+?1[\s\-\.]?)?\(?[0-9]{3}\)?[\s\-\.][0-9]{3}[\s\-\.][0-9]{4}\b/g,
+            // 10-digit US number without separators (but with context to avoid false positives)
+            /\b[2-9][0-9]{2}[2-9][0-9]{6}\b/g,
             // International with + prefix
             /\b\+[0-9]{1,3}[\s\-\.]?[0-9]{1,4}[\s\-\.]?[0-9]{1,4}[\s\-\.]?[0-9]{1,4}[\s\-\.]?[0-9]{0,4}\b/g,
             // UK: +44 XXXX XXXXXX or 0XXXX XXXXXX
             /\b(?:\+44|0)[\s\-\.]?[0-9]{4}[\s\-\.]?[0-9]{6}\b/g,
             // Phone with context
-            /\b(?:phone|tel|mobile|cell|fax)(?:\s*(?:#|number|no\.?)?:?\s*)[\+]?[0-9\s\-\.\(\)]{10,20}\b/gi,
+            /\b(?:phone|tel|mobile|cell|fax|call)(?:\s*(?:#|number|no\.?)?:?\s*)[\+]?[0-9\s\-\.\(\)]{7,20}\b/gi,
         ],
         replacement: '[REDACTED_PHONE]',
     },
@@ -385,12 +452,78 @@ const PATTERNS: RedactionPattern[] = [
             /https?:\/\/[^\s]*[?&](?:track|click|open|view|pixel)[^\s]*=[^\s&"']{20,}[^\s]*/gi,
             // Generic URLs with very long token parameters
             /https?:\/\/[^\s<>"']*[?&][a-z_]*(?:token|key|hash|signature|sig|auth|session)=[A-Za-z0-9_\-\.%]{30,}[^\s<>"']*/gi,
+            // URLs with personal/tracking IDs (payeeId, bu, uid, userId, trkId, euid, cnvId, etc.)
+            /https?:\/\/[^\s<>"']*[?&;](?:payeeId|bu|uid|userId|user_id|trkId|euid|cnvId|mesgId|osub|segname|plmtId)=[A-Za-z0-9_\-\.%]+[^\s<>"']*/gi,
+            // URLs with long numeric IDs in path or params
+            /https?:\/\/[^\s<>"']*[?&][a-z_]*[iI]d=[0-9]{8,}[^\s<>"']*/gi,
         ],
         replacement: '[REDACTED_URL]',
     },
+    {
+        category: 'case_numbers',
+        name: 'Case/Ticket Numbers',
+        description: 'Support cases and tickets',
+        patterns: [
+            // Case #: 1234567, Case: 1234567
+            /\b(?:case|ticket|incident|issue)(?:\s*(?:#|number|no\.?|id)?:?\s*)[0-9]{5,}\b/gi,
+            // Support ticket patterns
+            /\b(?:support|service|help)(?:\s*(?:ticket|case|request))?(?:\s*(?:#|number|no\.?|id)?:?\s*)[0-9]{5,}\b/gi,
+        ],
+        replacement: '[REDACTED_CASE]',
+    },
+    {
+        category: 'claim_numbers',
+        name: 'Claim Numbers',
+        description: 'Insurance and warranty claims',
+        patterns: [
+            // Claim #1234567, CLAIM# 1234567
+            /\b(?:claim)(?:\s*(?:#|number|no\.?|id)?:?\s*)[0-9]{5,}\b/gi,
+            // Warranty claim
+            /\b(?:warranty|dispute|refund)(?:\s*(?:claim|case|request))?(?:\s*(?:#|number|no\.?|id)?:?\s*)[0-9]{5,}\b/gi,
+        ],
+        replacement: '[REDACTED_CLAIM]',
+    },
+    {
+        category: 'auth_codes',
+        name: 'Authorization Codes',
+        description: 'Transaction authorization codes',
+        patterns: [
+            // Auth. code 12345Z, Authorization #12345
+            /\b(?:auth(?:orization)?|approval)(?:\.?\s*(?:code|#|number|no\.?)?:?\s*)[A-Z0-9]{4,}\b/gi,
+            // Transaction auth codes
+            /\b(?:transaction|trans|txn)(?:\s*(?:auth|code|#|id)?:?\s*)[A-Z0-9]{5,}\b/gi,
+        ],
+        replacement: '[REDACTED_AUTH]',
+    },
+    {
+        category: 'device_ids',
+        name: 'Device IDs',
+        description: 'Device and hardware identifiers',
+        patterns: [
+            // DEVICE-ID: 12345678
+            /\b(?:device|hardware|serial|imei|udid|uuid)(?:[\s\-_]*(?:id|number|#)?:?\s*)[A-Z0-9\-]{6,}\b/gi,
+            // MAC addresses
+            /\b(?:[0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}\b/g,
+        ],
+        replacement: '[REDACTED_DEVICE]',
+    },
+    {
+        category: 'employee_ids',
+        name: 'Employee/Student IDs',
+        description: 'Employment and student identifiers',
+        patterns: [
+            // Employee ID Number is FSA123456
+            /\b(?:employee|emp|staff|worker)(?:\s*(?:id|#|number|no\.?)?(?:\s*(?:is|number|:))?\s*)[A-Z0-9]{5,}\b/gi,
+            // Student ID
+            /\b(?:student)(?:\s*(?:id|#|number|no\.?)?:?\s*)[A-Z0-9]{5,}\b/gi,
+            // Badge/ID number
+            /\b(?:badge|id)(?:\s*(?:#|number|no\.?)?:?\s*)[A-Z0-9]{5,}\b/gi,
+        ],
+        replacement: '[REDACTED_EMP_ID]',
+    },
 
     // ════════════════════════════════════════════════════════════════════
-    // OPTIONAL - OFF by default
+    // PII - ON by default
     // ════════════════════════════════════════════════════════════════════
     {
         category: 'email_addresses',
@@ -435,10 +568,10 @@ const PATTERNS: RedactionPattern[] = [
         name: 'Order Numbers',
         description: 'Order IDs, confirmation numbers',
         patterns: [
-            // Order number with context
-            /\b(?:order|confirmation|invoice|receipt|transaction|purchase)(?:\s*(?:#|number|no\.?|id)?:?\s*)[A-Z0-9\-]{6,20}\b/gi,
-            // Order #XXXXXXX
-            /\b(?:order|conf|inv)(?:\s*#\s*)[A-Z0-9\-]{6,20}\b/gi,
+            // Order number with context (handles parentheses)
+            /\b(?:order|confirmation|invoice|receipt|transaction|purchase)(?:\s*(?:#|number|no\.?|id)?:?\s*)\(?[A-Z0-9\-]{6,20}\)?\b/gi,
+            // Order #XXXXXXX or order (#XXXXXXX)
+            /\b(?:order|conf|inv)(?:\s*#?\s*)\(?[A-Z0-9\-]{6,20}\)?\b/gi,
             // Reference number
             /\b(?:reference|ref)(?:\s*(?:#|number|no\.?)?:?\s*)[A-Z0-9\-]{6,20}\b/gi,
         ],
@@ -493,6 +626,10 @@ const PATTERNS: RedactionPattern[] = [
             /\b(?:account|acct)(?:\s*(?:#|number|no\.?)?:?\s*)[A-Z0-9\-]{6,15}\b/gi,
             // Subscriber ID
             /\b(?:subscriber|subscription)(?:\s*(?:#|number|no\.?|id)?:?\s*)[A-Z0-9\-]{6,20}\b/gi,
+            // Airline loyalty programs: RR# 12345678, FF# 12345678, etc.
+            /\b(?:RR|FF|MP|SK|AA|UA|DL|WN)(?:\s*#?\s*)[0-9]{8,12}\b/gi,
+            // Rapid Rewards, MileagePlus, SkyMiles, AAdvantage with number
+            /\b(?:rapid\s*rewards?|mileage\s*plus|sky\s*miles?|aadvantage|frequent\s*flyer)(?:\s*(?:#|number|no\.?|id|account)?:?\s*)[0-9]{8,12}\b/gi,
         ],
         replacement: '[REDACTED_MEMBER_ID]',
     },
@@ -525,6 +662,20 @@ const PATTERNS: RedactionPattern[] = [
             /\b(?:group)(?:\s*(?:#|number|no\.?)?:?\s*)[A-Z0-9\-]{4,15}\b/gi,
         ],
         replacement: '[REDACTED_MEDICAL]',
+    },
+    {
+        category: 'financial_amounts',
+        name: 'Financial Amounts',
+        description: 'Dollar amounts and prices',
+        patterns: [
+            // $1,234.56 or $1234.56
+            /\$[0-9,]+\.[0-9]{2}\b/g,
+            // $1,234 or $1234 (no cents)
+            /\$[0-9,]+\b/g,
+            // Amount: $1234, Balance: $1234, Total: $1234
+            /\b(?:amount|balance|total|payment|price|cost|fee|charge)(?:\s*(?:of|is|was|:)?\s*)\$[0-9,]+(?:\.[0-9]{2})?\b/gi,
+        ],
+        replacement: '[REDACTED_AMOUNT]',
     },
     {
         category: 'regular_urls',
